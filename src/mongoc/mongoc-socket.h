@@ -24,6 +24,8 @@
 #include <bson.h>
 
 #ifdef _WIN32
+# include <ntstatus.h>
+# define WIN32_NO_STATUS
 # include <winsock2.h>
 # include <ws2tcpip.h>
 #else

@@ -10,7 +10,7 @@
 
 #include "ssl-test.h"
 
-#define TIMEOUT 1000
+#define TIMEOUT 600000
 
 #define LOCALHOST "127.0.0.1"
 
@@ -40,6 +40,58 @@ ssl_test_get_error ()
    /* otherwise operations return either true or false, no error */
    return -1;
 }
+
+
+PCCERT_CONTEXT getServerCertificate()
+{
+    HCERTSTORE hMyCertStore = NULL;
+    PCCERT_CONTEXT aCertContext = NULL;
+
+    //-------------------------------------------------------
+    // Open the My store, also called the personal store.
+    // This call to CertOpenStore opens the Local_Machine My 
+    // store as opposed to the Current_User's My store.
+
+    hMyCertStore = CertOpenStore(CERT_STORE_PROV_SYSTEM,
+        X509_ASN_ENCODING,
+        0,
+        CERT_SYSTEM_STORE_CURRENT_USER,
+        L"MY");
+
+    if (hMyCertStore == NULL)
+    {
+        printf("Error opening MY store for server.\n");
+        goto cleanup;
+    }
+    //-------------------------------------------------------
+    // Search for a certificate with some specified
+    // string in it. This example attempts to find
+    // a certificate with the string "example server" in
+    // its subject string. Substitute an appropriate string
+    // to find a certificate for a specific user.
+
+    aCertContext = CertFindCertificateInStore(hMyCertStore,
+        X509_ASN_ENCODING,
+        0,
+        CERT_FIND_SUBJECT_STR_A,
+        "MongoWinSSL", // use appropriate subject name
+        NULL
+        );
+
+    if (aCertContext == NULL)
+    {
+        printf("Error retrieving server certificate.");
+        goto cleanup;
+    }
+cleanup:
+    if (hMyCertStore)
+    {
+        CertCloseStore(hMyCertStore, 0);
+    }
+    return aCertContext;
+}
+
+
 
 /** this function is meant to be run from ssl_test as a child thread
  *
@@ -72,6 +124,8 @@ ssl_test_server (void * ptr)
    iov.iov_base = buf;
    iov.iov_len = sizeof buf;
 
+
+
    listen_sock = mongoc_socket_new (AF_INET, SOCK_STREAM, 0);
    assert (listen_sock);
 
@@ -101,6 +155,9 @@ ssl_test_server (void * ptr)
 
    sock_stream = mongoc_stream_socket_new (conn_sock);
    assert (sock_stream);
+
+   data->server->certificate = getServerCertificate();
+
    ssl_stream = mongoc_stream_tls_new(sock_stream, data->server, 0);
    if (!ssl_stream) {
       unsigned long err = ssl_test_get_error();

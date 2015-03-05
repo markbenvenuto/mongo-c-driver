@@ -29,6 +29,10 @@ else()
    set (MONGOC_ENABLE_SSL 0)
 endif ()
 
+set (MONGOC_ENABLE_SSL 1)
+set (MONGOC_APPLE_NATIVE_TLS 0)
+set (MONGOC_OPENSSL 0)
+set (MONGOC_WINDOWS_NATIVE_TLS 1)
 set (MONGOC_ENABLE_SASL 0)
 
 configure_file (
@@ -145,10 +149,30 @@ if (OPENSSL_FOUND)
 endif()
 
 if (MSVC)
+   set (HEADERS ${HEADERS}
+      ${SOURCE_DIR}/src/mongoc/mongoc-rand.h
+      ${SOURCE_DIR}/src/mongoc/mongoc-stream-tls.h
+      ${SOURCE_DIR}/src/mongoc/mongoc-rand-windows.h
+      ${SOURCE_DIR}/src/mongoc/mongoc-stream-windows-tls.h
+      ${SOURCE_DIR}/src/mongoc/mongoc-ssl.h)
+   set (SOURCES ${SOURCES}
+      ${SOURCE_DIR}/src/mongoc/mongoc-rand.c
+      ${SOURCE_DIR}/src/mongoc/mongoc-rand-windows.c
+      ${SOURCE_DIR}/src/mongoc/mongoc-scram.c
+      ${SOURCE_DIR}/src/mongoc/mongoc-stream-tls.c
+      ${SOURCE_DIR}/src/mongoc/mongoc-stream-windows-tls.c
+      ${SOURCE_DIR}/src/mongoc/mongoc-ssl.c
+      ${SOURCE_DIR}/src/mongoc/mongoc-ssl-windows.c
+   )
+   set(LIBS ${LIBS} secur32.lib crypt32.lib Bcrypt.lib)
+endif()
+
+if (MSVC)
    if (OPENSSL_FOUND)
       set(MONGOC_SHARED_SOURCES ${SOURCES} ${PROJECT_SOURCE_DIR}/build/cmake/libmongoc-ssl.def)
    else ()
-      set(MONGOC_SHARED_SOURCES ${SOURCES} ${PROJECT_SOURCE_DIR}/build/cmake/libmongoc.def)
+      set(MONGOC_SHARED_SOURCES ${SOURCES} ${PROJECT_SOURCE_DIR}/build/cmake/libmongoc-ssl.def)
+      #set(MONGOC_SHARED_SOURCES ${SOURCES} ${PROJECT_SOURCE_DIR}/build/cmake/libmongoc.def)
    endif()
 else()
    set(MONGOC_SHARED_SOURCES ${SOURCES})
@@ -224,7 +248,7 @@ set(test-libmongoc-sources
    ${SOURCE_DIR}/tests/TestSuite.c
 )
 
-if (OPENSSL_FOUND)
+#if (OPENSSL_FOUND)
    set(test-libmongoc-sources ${test-libmongoc-sources}
       ${SOURCE_DIR}/tests/test-x509.c
       ${SOURCE_DIR}/tests/ssl-test.c
@@ -234,7 +258,7 @@ if (OPENSSL_FOUND)
       ${SOURCE_DIR}/tests/ha-test.c
       ${SOURCE_DIR}/tests/mongoc-tests.c
    )
-endif()
+#endif()
 
 mongoc_add_test(test-load FALSE
    ${SOURCE_DIR}/tests/test-load.c

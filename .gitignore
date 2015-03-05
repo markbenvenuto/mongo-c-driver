@@ -86,3 +86,13 @@ test-replica-set-ssl
 test-secondary
 test-sharded-cluster
 test-x509
+
+*.vcxproj
+*.filters
+*.user
+*.dir
+*.sln
+*.sdf
+*.opensdf
+*.suo
+

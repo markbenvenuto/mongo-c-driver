@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 MongoDB, Inc.
+ * Copyright 2015 MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,28 +14,32 @@
  * limitations under the License.
  */
 
+#ifndef MONGOC_RAND_WINDOWS_PRIVATE_H
+#define MONGOC_RAND_WINDOWS_PRIVATE_H
 
-#if !defined (MONGOC_INSIDE) && !defined (MONGOC_COMPILATION)
+#if !defined (MONGOC_I_AM_A_DRIVER) && !defined (MONGOC_COMPILATION)
 #error "Only <mongoc.h> can be included directly."
 #endif
 
-
-#ifndef MONGOC_RAND_H
-#define MONGOC_RAND_H
+#ifdef MONGOC_WINDOWS_NATIVE_TLS
 
 #include <bson.h>
 
-#include "mongoc-rand-apple.h"
-#include "mongoc-rand-openssl.h"
-#include "mongoc-rand-windows.h"
-
 BSON_BEGIN_DECLS
 
-void mongoc_rand_seed(const void* buf, int num);
-void mongoc_rand_add(const void* buf, int num, double entropy);
-int mongoc_rand_status(void);
+int
+_mongoc_rand_windows_bytes (uint8_t *buf,
+                          int      num);
+
+int
+_mongoc_pseudo_rand_windows_bytes (uint8_t *buf,
+                                 int      num);
 
 BSON_END_DECLS
 
+/* API setup for Windows */
+#define _mongoc_rand_bytes_impl _mongoc_rand_windows_bytes
+#define _mongoc_pseudo_rand_bytes_impl _mongoc_pseudo_rand_windows_bytes
 
-#endif /* MONGOC_RAND_H */
+#endif /* MONGOC_WINDOWS_NATIVE_TLS */
+#endif /* MONGOC_RAND_WINDOWS_PRIVATE_H */

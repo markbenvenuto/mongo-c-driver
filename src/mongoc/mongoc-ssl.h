@@ -38,6 +38,11 @@ struct _mongoc_ssl_opt_t
    const char *ca_dir;
    const char *crl_file;
    bool        weak_cert_validation;
+
+#ifdef _WIN32
+   PCCERT_CONTEXT certificate;
+#endif
+
    void       *padding [8];
 };
 

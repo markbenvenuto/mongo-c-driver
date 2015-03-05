@@ -23,12 +23,15 @@
 #include "mongoc-scram-private.h"
 #include "mongoc-rand-private.h"
 #include "mongoc-util-private.h"
+#include "mongoc-log.h"
 
 #include "mongoc-b64-private.h"
 
 #ifdef MONGOC_APPLE_NATIVE_TLS
 #import <CommonCrypto/CommonHMAC.h>
 #import <CommonCrypto/CommonDigest.h>
+#elif defined(MONGOC_WINDOWS_NATIVE_TLS)
+#include <bcrypt.h>
 #else
 #include <openssl/sha.h>
 #include <openssl/evp.h>
@@ -82,8 +85,112 @@ _mongoc_scram_init (mongoc_scram_t *scram)
    BSON_ASSERT (scram);
 
    memset (scram, 0, sizeof *scram);
+
+#if defined(MONGOC_WINDOWS_NATIVE_TLS)
+    NTSTATUS status = 0;
+    status = BCryptOpenAlgorithmProvider(&scram->hAlgorithmSha1, BCRYPT_SHA1_ALGORITHM, NULL, 0);
+
+    if (STATUS_SUCCESS != status) {
+        MONGOC_WARNING("BCryptOpenAlgorithmProvider(): %d", status);
+        return;
+    }
+
+    status = BCryptOpenAlgorithmProvider(&scram->hAlgorithmSha1HMAC, BCRYPT_SHA1_ALGORITHM, NULL, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+
+    if (STATUS_SUCCESS != status) {
+        MONGOC_WARNING("BCryptOpenAlgorithmProvider(): %d", status);
+        return;
+    }
+
+
+#endif
 }
 
+#if defined(MONGOC_WINDOWS_NATIVE_TLS)
+
+//void
+//CCHmac(CCHmacAlgorithm algorithm, const void *key, size_t keyLength, const void *data,
+//size_t dataLength, void *macOut);
+unsigned char*
+windows_hmac_or_hash(BCRYPT_ALG_HANDLE hAlgorithm, 
+    void *key, size_t keyLength, 
+    void *data, size_t dataLength, 
+    void *macOut, int macLen)
+{
+    BCRYPT_HASH_HANDLE hHash = 0;
+    char* hashObjectBuffer = 0;
+    NTSTATUS status = 0;
+    ULONG hashObjectLength = 0;
+    ULONG hashObjectLengthOut = 0;
+    unsigned char* ret = 0;
+
+    status = BCryptGetProperty(hAlgorithm, BCRYPT_OBJECT_LENGTH,
+        (char*)&hashObjectLength, sizeof(hashObjectLength), &hashObjectLengthOut, 0);
+
+    if (STATUS_SUCCESS != status) {
+        MONGOC_WARNING("BCryptGetProperty(): %d", status);
+        return NULL;
+    }
+
+    hashObjectBuffer = malloc(hashObjectLength);
+
+    status = BCryptCreateHash(hAlgorithm,
+        &hHash,
+        hashObjectBuffer,
+        hashObjectLength,
+        key,
+        (ULONG)keyLength,
+        0);
+
+    if (STATUS_SUCCESS != status) {
+        MONGOC_WARNING("BCryptCreateHash(): %d", status);
+        goto cleanup;
+    }
+
+    status = BCryptHashData(hHash, data, (ULONG)dataLength, 0);
+    if (STATUS_SUCCESS != status) {
+        MONGOC_WARNING("BCryptHashData(): %d", status);
+        goto cleanup;
+    }
+
+    status = BCryptFinishHash(hHash, macOut, macLen, 0);
+    if (STATUS_SUCCESS != status) {
+        MONGOC_WARNING("BCryptFinishHash(): %d", status);
+        goto cleanup;
+    }
+
+    // Success
+    ret = macOut;
+
+cleanup:
+    if (hHash)
+    {
+        (void)BCryptDestroyHash(hHash);
+    }
+
+    free(hashObjectBuffer);
+    return ret;
+}
+
+//void
+//CCHmac(CCHmacAlgorithm algorithm, const void *key, size_t keyLength, const void *data,
+//size_t dataLength, void *macOut);
+unsigned char*
+windows_hmac(mongoc_scram_t *scram, void *key, size_t keyLength, void *data,
+    size_t dataLength, void *macOut, int macLen)
+{
+    return windows_hmac_or_hash(scram->hAlgorithmSha1HMAC, key, keyLength, data, dataLength, macOut, macLen);
+}
+
+//extern unsigned char *
+//CC_SHA1(const void *data, CC_LONG len, unsigned char *md);
+unsigned char *
+windows_hash(mongoc_scram_t *scram, void *data, int len, unsigned char *md, int mdLen)
+{
+    return windows_hmac_or_hash(scram->hAlgorithmSha1, NULL, 0, data, len, md, mdLen);
+}
+
+#endif
 
 void
 _mongoc_scram_destroy (mongoc_scram_t *scram)
@@ -289,6 +396,14 @@ _mongoc_scram_salt_password (mongoc_scram_t *scram,
            start_key,
            sizeof (start_key),
            output);
+#elif defined(MONGOC_WINDOWS_NATIVE_TLS)
+   windows_hmac(scram,
+       password,
+       password_len,
+       start_key,
+       sizeof (start_key),
+       output,
+       sizeof(scram->salted_password));
 #else
    HMAC (EVP_sha1 (),
          password,
@@ -310,6 +425,14 @@ _mongoc_scram_salt_password (mongoc_scram_t *scram,
               intermediate_digest,
               sizeof (intermediate_digest),
               intermediate_digest);
+#elif defined(MONGOC_WINDOWS_NATIVE_TLS)
+       windows_hmac(scram,
+           password,
+           password_len,
+           intermediate_digest,
+           sizeof (intermediate_digest),
+           intermediate_digest,
+           sizeof(intermediate_digest));
 #else
       HMAC (EVP_sha1 (),
             password,
@@ -361,6 +484,29 @@ _mongoc_scram_generate_client_proof (mongoc_scram_t *scram,
            scram->auth_message,
            scram->auth_messagelen,
            client_signature);
+#elif defined(MONGOC_WINDOWS_NATIVE_TLS)
+   windows_hmac(
+       scram,
+       scram->salted_password,
+       MONGOC_SCRAM_HASH_SIZE,
+       (uint8_t *)MONGOC_SCRAM_CLIENT_KEY,
+       strlen (MONGOC_SCRAM_CLIENT_KEY),
+       client_key,
+       sizeof(client_key));
+
+   /* StoredKey := H(client_key) */
+   windows_hash(scram, client_key, MONGOC_SCRAM_HASH_SIZE, stored_key, sizeof(stored_key));
+
+   /* ClientSignature := HMAC(StoredKey, AuthMessage) */
+   windows_hmac(
+       scram,
+       stored_key,
+       MONGOC_SCRAM_HASH_SIZE,
+       scram->auth_message,
+       scram->auth_messagelen,
+       client_signature,
+       sizeof(client_signature));
+
 #else
    HMAC (EVP_sha1 (),
          scram->salted_password,
@@ -678,6 +824,25 @@ _mongoc_scram_verify_server_signature (mongoc_scram_t *scram,
            scram->auth_message,
            scram->auth_messagelen,
            server_signature);
+#elif defined(MONGOC_WINDOWS_NATIVE_TLS)
+   windows_hmac (
+       scram,
+       scram->salted_password,
+       MONGOC_SCRAM_HASH_SIZE,
+       (uint8_t *)MONGOC_SCRAM_SERVER_KEY,
+       strlen (MONGOC_SCRAM_SERVER_KEY),
+       server_key,
+       sizeof(server_key));
+
+   /* ServerSignature := HMAC(ServerKey, AuthMessage) */
+   windows_hmac (
+       scram,
+       server_key,
+       MONGOC_SCRAM_HASH_SIZE,
+       scram->auth_message,
+       scram->auth_messagelen,
+       server_signature,
+       sizeof(server_signature));
 #else
    HMAC (EVP_sha1 (),
          scram->salted_password,

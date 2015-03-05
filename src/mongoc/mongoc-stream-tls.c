@@ -24,6 +24,7 @@
 /* specific TLS implementations */
 #include "mongoc-stream-apple-tls.h"
 #include "mongoc-stream-openssl-tls.h"
+#include "mongoc-stream-windows-tls.h"
 
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "stream-tls"

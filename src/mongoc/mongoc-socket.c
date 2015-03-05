@@ -890,7 +890,7 @@ _mongoc_socket_try_sendv (mongoc_socket_t *sock,   /* IN */
 #ifdef _WIN32
    ret = WSASend (sock->sd, (LPWSABUF)iov, iovcnt, &dwNumberofBytesSent,
                   0, NULL, NULL);
-   ret = ret ? -1 : dwNumberofBytesSent;
+   ret = ret ? -1 : (ssize_t)dwNumberofBytesSent;
 #else
    memset (&msg, 0, sizeof msg);
    msg.msg_iov = iov;

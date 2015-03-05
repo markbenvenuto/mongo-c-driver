@@ -43,6 +43,11 @@ typedef struct _mongoc_scram_t
    uint8_t     *auth_message;
    uint32_t     auth_messagemax;
    uint32_t     auth_messagelen;
+
+#if defined(MONGOC_WINDOWS_NATIVE_TLS)
+   BCRYPT_ALG_HANDLE hAlgorithmSha1;
+   BCRYPT_ALG_HANDLE hAlgorithmSha1HMAC;
+#endif
 } mongoc_scram_t;
 
 void

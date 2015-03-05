@@ -14,44 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef MONGOC_SSL_PRIVATE_H
-#define MONGOC_SSL_PRIVATE_H
+#ifndef MONGOC_SSL_WINDOWS_PRIVATE_H
+#define MONGOC_SSL_WINDOWS_PRIVATE_H
 
-#ifdef MONGOC_ENABLE_SSL
+#ifdef MONGOC_WINDOWS_NATIVE_TLS
 
 #if !defined (MONGOC_I_AM_A_DRIVER) && !defined (MONGOC_COMPILATION)
 #error "Only <mongoc.h> can be included directly."
 #endif
 
-#include <bson.h>
-
 #include "mongoc-ssl.h"
-#include "mongoc-ssl-apple-private.h"
-#include "mongoc-ssl-openssl-private.h"
-#include "mongoc-ssl-windows-private.h"
 
 BSON_BEGIN_DECLS
 
-#ifdef MONGOC_OPENSSL
-bool
-_mongoc_ssl_check_cert (SSL        *ssl,
-                        const char *host,
-                        bool        weak_cert_validation);
-
-SSL_CTX *
-_mongoc_ssl_ctx_new (mongoc_ssl_opt_t *opt);
-#endif
-
 char    *
-_mongoc_ssl_extract_subject (const char *filename);
+_mongoc_ssl_windows_extract_subject (const char *filename);
 
 void
-_mongoc_ssl_init (void);
+_mongoc_ssl_windows_init (void);
 
 void
-_mongoc_ssl_cleanup (void);
+_mongoc_ssl_windows_cleanup (void);
+
+/* API setup for SecureTransport */
+#define _mongoc_ssl_extract_subject_impl _mongoc_ssl_windows_extract_subject
+#define _mongoc_ssl_init_impl _mongoc_ssl_windows_init
+#define _mongoc_ssl_cleanup_impl _mongoc_ssl_windows_cleanup
 
 BSON_END_DECLS
 
-#endif /* MONGOC_ENABLE_SSL */
-#endif /* MONGOC_SSL_PRIVATE_H */
+#endif /* MONGOC_WINDOWS_NATIVE_TLS */
+#endif /* MONGOC_SSL_WINDOWS_PRIVATE_H */

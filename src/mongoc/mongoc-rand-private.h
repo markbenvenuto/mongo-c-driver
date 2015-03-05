@@ -28,6 +28,7 @@
 #include "mongoc-rand.h"
 #include "mongoc-rand-apple-private.h"
 #include "mongoc-rand-openssl-private.h"
+#include "mongoc-rand-windows-private.h"
 
 BSON_BEGIN_DECLS
 

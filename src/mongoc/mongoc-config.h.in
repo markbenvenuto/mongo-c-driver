@@ -50,6 +50,16 @@
 #endif
 
 /*
+ * MONGOC_WINDOWS_NATIVE_TLS is set from configure to determine if we are compiled
+ * with support for Windows SChannel.
+ */
+#define MONGOC_WINDOWS_NATIVE_TLS @MONGOC_WINDOWS_NATIVE_TLS@
+
+#if MONGOC_WINDOWS_NATIVE_TLS != 1
+#  undef MONGOC_WINDOWS_NATIVE_TLS
+#endif
+
+/*
  * MONGOC_ENABLE_SASL is set from configure to determine if we are
  * compiled with SASL support.
  */

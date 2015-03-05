@@ -1,4 +1,3 @@
-#include <openssl/err.h>
 #include <mongoc.h>
 
 #include "ssl-test.h"
